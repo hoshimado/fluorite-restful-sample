@@ -1,0 +1,23 @@
+{
+  "name": "fluorite-c91-sample",
+  "version": "1.0.0",
+  "description": "SQL RESTful API for C91",
+  "main": "server.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node_modules\\.bin\\mocha",
+    "start": "node server.js"
+  },
+  "author": "xingyanhuan",
+  "license": "ISC",
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.2.0",
+    "sinon": "^1.17.6"
+  },
+  "dependencies": {
+    "mssql": "^3.3.0"
+  }
+}
