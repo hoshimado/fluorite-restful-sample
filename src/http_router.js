@@ -8,18 +8,15 @@
 const path = require('path');
 const url = require("url")
 const fs = require("fs");
+const qs = require("qs");
 const debug = require("./debugger.js");
 
 const STATIC_HTML_DIR = "/html_contents";
 
 
-
-/**
- * 使いまわす静的なhtml設定。不正なURLへの応答を含む。
- * 
- * 参考サイト
- * http://shimz.me/blog/node-js/2690
- */
+// 参考サイト
+// http://shimz.me/blog/node-js/2690
+//
 const _StaticResponse = {
 	"200" : function( response, fileHandle, fileName ){
 		const extName = path.extname( fileName );
@@ -65,9 +62,6 @@ const _StaticResponse = {
 };
 
 
-/**
- * 静的htmlページの表示
- */
 const _staticHtmlAction = function( pathname ){
 	return function( response ){
 		var filename = path.join( process.cwd(), STATIC_HTML_DIR + pathname );
@@ -98,11 +92,8 @@ const _staticHtmlAction = function( pathname ){
 
 
 
-/**
- * urlの解析。
- * 対応するapiのインスタンスの決定。もしくは静的htmlページとして扱いを決定。
- */
-const route = function( request, apiInstanceList ) {
+
+const route = function( request, actionHandler ) {
 	var pathname = url.parse( request.url ).pathname;
 	var patharray, api_name;
 
@@ -113,8 +104,8 @@ const route = function( request, apiInstanceList ) {
 
 		debug.console_output( "API name is [" + api_name + "].");
 
-		if( apiInstanceList.hasOwnProperty( api_name ) ){
-			return apiInstanceList[ api_name ];
+		if( actionHandler.hasOwnProperty( api_name ) ){
+			return actionHandler[ api_name ];
 		}else{
 			return _StaticResponse["404"];
 		}
@@ -125,11 +116,9 @@ const route = function( request, apiInstanceList ) {
 };
 
 
-/**
- * HTTPのGETメソッドの query オブジェクトを切り出す。
- * @param{http.createServer::request} request 
- * @returns 非同期のPOST動作に合わせて、Promiseインスタンスとする。
- */
+// http.createServer::request から、GETメソッドの query オブジェクトを切り出す。
+// 戻り値は、非同期のPOST動作に合わせて、Promiseインスタンスとする。
+//
 const getGetQuery = function( request ){ 
 	return new Promise( function(resolve, reject) {
 		if( request.method == "GET" ){
@@ -141,12 +130,9 @@ const getGetQuery = function( request ){
 };
 
 
-
-/**
- * HTTPのPOSTメソッドの query オブジェクトを切り出す。
- * @param{http.createServer::request} request 
- * @returns 非同期動作のため、Promiseインスタンスとする。
- */
+// http.createServer::request から、POSTメソッドの query オブジェクトを切り出す。
+// 戻り値は、非同期動作のため、Promiseインスタンスとする。
+//
 const getPostData = function( request ){
 	return new Promise( function(resolve, reject) { // http://azu.github.io/promises-book/
 		if( request.method == "POST" ){
@@ -155,15 +141,15 @@ const getPostData = function( request ){
 			request.setEncoding("utf8");
 			request.addListener("data", function (postDataChunk) {
 				postData += postDataChunk;
-				debug.consolelog("Received POST data chunk '" + postDataChunk + "'.");
+				debug.console_output("Received POST data chunk '" + postDataChunk + "'.");
 			});
 			request.addListener("end", function () {
 				postData = qs.parse(postData); // http://codedehitokoto.blogspot.jp/2012/05/qs.html
 
-				debug.consolelog("Received ALL POST datas is here:");
-				debug.consolelog("+++");
-				debug.consolelog( postData );
-				debug.consolelog("---");
+				debug.console_output("Received ALL POST datas is here:");
+				debug.console_output("+++");
+				debug.console_output( postData );
+				debug.console_output("---");
 
 				isResolved = true;
 				resolve( postData );
