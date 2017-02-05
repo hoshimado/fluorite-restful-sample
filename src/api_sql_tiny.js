@@ -4,8 +4,7 @@
 	encoding=utf-8
 */
 const debug = require("./debugger.js");
-
-var mssql = require('mssql');
+var mssql = require('mssql'); // https://www.npmjs.com/package/mssql
 
 
 /**
@@ -24,36 +23,37 @@ console.log( queryFromGet );
 
 
 /**
- * @type Azure接続用の設定変数。
+ * @type SQL Server接続用の設定変数。
  */
 var CONFIG_SQL = {
-	// user : "sa",
 	user : process.env.SQL_USER,
 	password : process.env.SQL_PASSWORD,
 	server : process.env.SQL_SERVER, // You can use 'localhost\\instance' to connect to named instance
-	databese : "sample001", // "tiny-databese"
-	stream : true,   // You can enable streaming globally
+	database : process.env.SQL_DATABASE,
+	stream : false,  // if true, query.promise() is NOT work! // You can enable streaming globally
+
+	// Use this if you're on Windows Azure
 	options : {
-		encrypt : true // Use this if you're on Windows Azure
+		database : process.env.SQL_DATABASE, // コレ要る？
+		encrypt : true 
 	} // It works well on LOCAL SQL Server if this option is set.
 };
 /**
  * SQL Server への接続テストAPI
  */
 exports.api_v1_sql = function( response, queryFromGet, dataFromPost ){
-//	var connect = mssql.connect( config_local );
 	var connect = mssql.connect( CONFIG_SQL );
 
 	connect.then(function(){
-		response.writeJsonAsString( { result : "sql connection is OK!" } );
-		mssql.close();
-
+		response.writeJsonAsString({
+			"result" : "sql connection is OK!"
+		});
 	}).catch(function(err){
 		response.writeJsonAsString( err );
-		console.log(err);
+	}).then(function(){
 		mssql.close();
 	});
-
-	debug.console_output( "[http] api is called." );
 };
+
+
 
