@@ -1,0 +1,57 @@
+﻿<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja">
+<head>
+	<title>指定されたデバイスキーのバッテリーログをグラフ表示</title>
+	<meta charset="UTF-8" />
+	<meta name="viewport" id="id_viewport" content="width=device-width" >
+
+	<meta http-equiv="Content-Script-Type" content="text/javascript; charset=UTF-8" />
+	
+	<!-- 可能ならCDN、そうでなければコピーしてこのフォルダ配下だけ完結させること。 -->
+	<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
+	
+	<!-- https://github.com/carhartl/jquery-cookie -->
+	<script type="text/javascript" src="./js/jquery.cookie.js"></script>
+
+	<!-- クッキーの簡易扱いクラス -->
+	<script type="text/javascript" src="./js/bind_cookie.js"></script>
+	
+	<!-- 動作の定義 -->
+	<script src="./js/draw_chart.js"></script>
+	<script language="JavaScript">
+	<!--
+		$(document).ready(function(){
+			var panelbutton = bindExpandCollapsePanel( "id_ctrl_panel" )
+			drawEditSetting( "id_edit_setting" );
+			load6Cookie( "id_azure_domain", "id_device_key" );
+			bindUpdateButton( "id_update", "id_azure_domain", "id_device_key", "id_result" );
+			updateChart( 
+				"id_azure_domain", "id_device_key", "id_result", 
+				"./img/loading.gif"
+			).done(function(){
+			}).fail(function(){
+				panelbutton.click();
+			});
+		});
+	//-->
+	</script>
+</head>
+<body bgcolor="#ffffff">
+	<div id="id_ctrl_panel">
+		<div id="id_edit_setting" style="width:520px;"></div>
+		<div id="id_update"></div>
+
+		<div style="display:none;">
+			<div id="id_azure_domain"></div>
+			<div id="id_device_key"></div>
+		</div>
+	</div>
+	<hr style="width:520px;">
+	<div id="id_result" style="width:100%;">
+		<img id="id_loading" src="./img/loading.gif">
+	</div>
+	<br>
+	<br>
+	<br>
+</body>
+</html>

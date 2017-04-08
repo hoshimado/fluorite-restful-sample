@@ -51,6 +51,8 @@ node_modules
 coverage
 
 # Local bat file
-*.bat
+*.LOG
+*.log
+
 
 
