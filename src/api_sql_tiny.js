@@ -42,6 +42,7 @@ console.log( queryFromGet );
 
 /**
  * @type SQL Server接続用の設定変数。
+ * 詳細は⇒ https://www.npmjs.com/package/mssql
  */
 var CONFIG_SQL = {
 	user : process.env.SQL_USER,
@@ -52,7 +53,6 @@ var CONFIG_SQL = {
 
 	// Use this if you're on Windows Azure
 	options : {
-		database : process.env.SQL_DATABASE, // コレ要る？
 		encrypt : true 
 	} // It works well on LOCAL SQL Server if this option is set.
 };
@@ -96,7 +96,7 @@ API_PARAM.prototype.getBatteryValue = function(){ return isDefined( this, "batte
 API_PARAM.prototype.getStartDate = function(){ return isDefined( this, "date_start"); };
 API_PARAM.prototype.getEndDate   = function(){ return isDefined( this, "date_end"); };
 API_PARAM.prototype.getMaxCount = function(){ return isDefined( this, "max_count"); };
-
+exports.API_PARAM = API_PARAM;
 
 
 
@@ -119,7 +119,7 @@ exports.api_v1_sql = function( queryFromGet, dataFromPost ){
 		mssql.close();
 		return Promise.resolve({
 			"jsonData" : { "result" : "sql connection is OK!" },
-			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+			"status" : 200 // OK
 		});
 	});
 };
@@ -145,7 +145,7 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 	// ・・・と考えていたのだけれど、if文で分けたほうが良い気がしてきた。
 	// ⇒変更した。
 	// ▼メモ2017.3.6
-	// コード共通化はクラス継承で実現すればよい。
+	// コード共通化はクラス継承で実現すればよい。【後で】
 	if( inputData.invalid && inputData.invalid.length > 0 ){
 		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
 		return Promise.resolve({
@@ -176,7 +176,9 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 					outJsonData[ "errer_on_validation" ] = err;
 					outJsonData[ "errerMessage" ] = "devicePermission of " + device_key + " is false."; 
 				}
-				reject(); // ⇒次のcatch()が呼ばれる。
+				reject({
+					"http_status" : 401 // Unauthorized
+				}); // ⇒次のcatch()が呼ばれる。
 			});
 		});
 		// 【自己メモ】http://azu.github.io/promises-book/#not-throw-use-reject
@@ -190,40 +192,65 @@ exports.api_v1_batterylog_add = function( queryFromGet, dataFromPost ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		return isDeviceAccessRateValied( 
-			config.database, 
-			param,
-			limit.TIMES_PER_HOUR
-		);
-	}).then(function( result ){
-		var param = new API_PARAM( result );
+		return new Promise(function(resolve,reject){
+			isDeviceAccessRateValied( 
+				config.database, 
+				param,
+				limit.TIMES_PER_HOUR
+			).then(function(result){
+				resolve(result);
+			}).catch(function(err){
+				// アクセス上限エラー。
+				reject({
+					"http_status" : 503 // Service Unavailable 過負荷
+				}); // ⇒次のcatch()が呼ばれる。
+			});
+		});
+	}).then(function( resultAccessRate ){
+		var param = new API_PARAM( resultAccessRate );
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var addBatteryLog2Database = factoryImpl.sql_parts.getInstance("addBatteryLog2Database");
-		return addBatteryLog2Database( config.database, param.getDeviceKey(), param.getBatteryValue() );
-	}).then(function( result ){
-		// 直前の「インサート」処理が成功
-		// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
-		var param = new API_PARAM(result);
-		outJsonData[ "result" ] = "Success to insert " + param.getBatteryValue() + " as batterylog on Database!";
-		outJsonData[ "device_key"] = param.getDeviceKey();
-		return Promise.resolve();
-	}).catch(function(){
-		// 直前の「インサート」処理は失敗。
-		outJsonData[ "error_on_insert" ];
-		return Promise.resolve(); // 異常系処理を終えたので、戻すのは「正常」。
+
+		return new Promise(function(resolve,reject){
+			addBatteryLog2Database( 
+				config.database, 
+				param.getDeviceKey(), 
+				param.getBatteryValue() 
+			).then(function(resultInsert){
+				// 「インサート」処理が成功
+				// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
+				var param = new API_PARAM(resultInsert);
+				outJsonData[ "result" ] = "Success to insert " + param.getBatteryValue() + " as batterylog on Database!";
+				outJsonData[ "device_key"] = param.getDeviceKey();
+				resolve();
+			}).catch(function(err){
+				// 「インサート」処理で失敗。
+				outJsonData[ "error_on_insert" ];
+				reject( err ); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).then(function(){
-		// always 処理
+		// ここまですべて正常終了
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close(); // 【ToDo】create～（）に合わせてWrappwerすべきかな。⇒Test側のstubも合わせて修正。
 
 		return Promise.resolve({
 			"jsonData" : outJsonData,
-			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+			"status" : 200 // OK
 		});
+	}).catch(function(err){
+		// どこかでエラーした⇒エラー応答のjson返す。
+		var mssql = factoryImpl.mssql.getInstance();
+		var http_status = (err && err.http_status) ? err.http_status : 500;
+
+		mssql.close();
+		outJsonData[ "error_on_add" ];
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : http_status
+		}); // 異常系処理を終えたので、戻すのは「正常」。
 	});
 }
-
-
 
 
 
@@ -238,7 +265,7 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 	var inputData = getShowObjectFromGetData( queryFromGet );
 
 	// メモ2017.3.6
-	// コード共通化はクラス継承で実現すればよい。
+	// コード共通化はクラス継承で実現すればよい。【後で】
 	if( inputData.invalid && inputData.invalid.length > 0 ){
 		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
 		return Promise.resolve({
@@ -271,7 +298,9 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
 				}
-				reject(); // ⇒次のcatch()が呼ばれる。
+				reject({
+					"http_status" : 401 // Unauthorized
+				}); // ⇒次のcatch()が呼ばれる。
 			});
 		});
 	}).then(function( permittedInfomation ){
@@ -281,39 +310,64 @@ exports.api_v1_batterylog_show = function( queryFromGet, dataFromPost ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		return isDeviceAccessRateValied( 
-			config.database, 
-			param, 
-			limit.TIMES_PER_HOUR
-		);
+		return new Promise(function(resolve,reject){
+			isDeviceAccessRateValied( 
+				config.database, 
+				param,
+				limit.TIMES_PER_HOUR
+			).then(function(result){
+				resolve(result);
+			}).catch(function(err){
+				// アクセス上限エラー。
+				reject({
+					"http_status" : 503 // Service Unavailable 過負荷
+				}); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).then(function( inputData ){
 		// 対象のログデータをSQLへ要求
 		var param = new API_PARAM( inputData );
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var getListOfBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "getListOfBatteryLogWhereDeviceKey" );
 
-		return getListOfBatteryLogWhereDeviceKey(
-			config.database, 
-			param.getDeviceKey(), 
-			{ 
-				"start" : param.getStartDate(), 
-				"end"   : param.getEndDate()
-			}
-		);
-	}).then(function( recordset ){
-		// 直前の「セレクト」処理が成功
-		outJsonData["table"] = recordset;
-	}).catch(function(){
-		// 直前の「セレクト」処理は失敗。
-		outJsonData[ "error_on_select" ];
+		return new Promise(function(resolve,reject){
+			getListOfBatteryLogWhereDeviceKey(
+				config.database, 
+				param.getDeviceKey(), 
+				{ 
+					"start" : param.getStartDate(), 
+					"end"   : param.getEndDate()
+				}
+			).then(function(recordset){
+				// ログ取得処理が成功
+				// 【FixME】総登録数（対象のデバイスについて）を取得してjsonに含めて返す。取れなければ null でOK（その場合も成功扱い）。
+				outJsonData["table"] = recordset;
+				resolve();
+			}).catch(function(err){
+				// 取得処理で失敗。
+				outJsonData[ "error_on_insert" ];
+				reject( err ); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).then(function(){
-		// always 処理
+		// ここまですべて正常終了
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close();
 		return Promise.resolve({
 			"jsonData" : outJsonData,
 			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
 		});
+	}).catch(function(err){
+		// どこかでエラーした⇒エラー応答のjson返す。
+		var mssql = factoryImpl.mssql.getInstance();
+		var http_status = (err && err.http_status) ? err.http_status : 500;
+
+		mssql.close();
+		outJsonData[ "error_on_insert" ];
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : http_status
+		}); // 異常系処理を終えたので、戻すのは「正常」。
 	});
 };
 
@@ -328,10 +382,10 @@ exports.api_v1_batterylog_delete = function( queryFromGet, dataFromPost ){
 	var createPromiseForSqlConnection = factoryImpl.sql_parts.getInstance( "createPromiseForSqlConnection" );
 	var getDeleteObjectFromGetData = factoryImpl.sql_parts.getInstance( "getDeleteObjectFromGetData" );
 	var outJsonData = {};
-	var inputData = getDeleteObjectFromGetData( queryFromGet );
+	var inputData = getDeleteObjectFromGetData( dataFromPost );
 
 	// メモ2017.3.6
-	// コード共通化はクラス継承で実現すればよい。
+	// コード共通化はクラス継承で実現すればよい。【後で】
 	if( inputData.invalid && inputData.invalid.length > 0 ){
 		outJsonData[ "error_on_format" ] = "GET or POST format is INVAILD.";
 		return Promise.resolve({
@@ -364,7 +418,9 @@ exports.api_v1_batterylog_delete = function( queryFromGet, dataFromPost ){
 				if( err ){
 					outJsonData[ "errer_on_validation" ] = err;
 				}
-				reject(); // ⇒次のcatch()が呼ばれる。
+				reject({
+					"http_status" : 401 // Unauthorized
+				}); // ⇒次のcatch()が呼ばれる。
 			});
 		});
 	}).then(function( permittedInfomation ){
@@ -374,39 +430,63 @@ exports.api_v1_batterylog_delete = function( queryFromGet, dataFromPost ){
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var limit = factoryImpl.RATE_LIMIT.getInstance();
 
-		return isDeviceAccessRateValied( 
-			config.database, 
-			param, 
-			limit.TIMES_PER_HOUR
-		);
+		return new Promise(function(resolve,reject){
+			isDeviceAccessRateValied( 
+				config.database, 
+				param,
+				limit.TIMES_PER_HOUR
+			).then(function(result){
+				resolve(result);
+			}).catch(function(err){
+				// アクセス上限エラー。
+				reject({
+					"http_status" : 503 // Service Unavailable 過負荷
+				}); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).then(function( inputData ){
 		// 対象のログデータをSQLへ要求
 		var param = new API_PARAM( inputData );
 		var config = factoryImpl.CONFIG_SQL.getInstance();
 		var deleteBatteryLogWhereDeviceKey = factoryImpl.sql_parts.getInstance( "deleteBatteryLogWhereDeviceKey" );
 
-		return deleteBatteryLogWhereDeviceKey(
-			config.database, 
-			param.getDeviceKey(), 
-			{ 
-				"start" : param.getStartDate(), 
-				"end"   : param.getEndDate()
-			}
-		);
+		return new Promise(function(resolve,reject){
+			deleteBatteryLogWhereDeviceKey(
+				config.database, 
+				param.getDeviceKey(), 
+				{ 
+					"start" : param.getStartDate(), 
+					"end"   : param.getEndDate()
+				}
+			).then(function(){
+				// 削除処理が成功
+				// ※何もしない
+				resolve();
+			}).catch(function(err){
+				// 削除処理で失敗。
+				outJsonData[ "error_on_delete" ];
+				reject( err ); // ⇒次のcatch()が呼ばれる。
+			});
+		});
 	}).then(function(){
-		// 直前の「セレクト」処理が成功
-		// ※何もしない
-	}).catch(function(){
-		// 直前の「セレクト」処理は失敗。
-		outJsonData[ "error_on_select" ];
-	}).then(function(){
-		// always 処理
+		// ここまですべて正常終了
 		var mssql = factoryImpl.mssql.getInstance();
 		mssql.close();
 		return Promise.resolve({
 			"jsonData" : outJsonData,
-			"status" : 200 // OK 【FixMe】直前までの無いように応じて変更する。
+			"status" : 200 // OK
 		});
+	}).catch(function(err){
+		// どこかでエラーした⇒エラー応答のjson返す。
+		var mssql = factoryImpl.mssql.getInstance();
+		var http_status = (err && err.http_status) ? err.http_status : 500;
+
+		mssql.close();
+		outJsonData[ "error_on_insert" ];
+		return Promise.resolve({
+			"jsonData" : outJsonData,
+			"status" : http_status
+		}); // 異常系処理を終えたので、戻すのは「正常」。
 	});
 };
 
