@@ -1,54 +1,83 @@
-﻿<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="ja" lang="ja">
+﻿<html>
 <head>
-	<title>指定されたデバイスキーのバッテリーログをグラフ表示</title>
 	<meta charset="UTF-8" />
 	<meta name="viewport" id="id_viewport" content="width=device-width" >
 
-	<meta http-equiv="Content-Script-Type" content="text/javascript; charset=UTF-8" />
-	
-	<!-- 可能ならCDN、そうでなければコピーしてこのフォルダ配下だけ完結させること。 -->
-	<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
-	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
-	
-	<!-- https://github.com/carhartl/jquery-cookie -->
-	<script type="text/javascript" src="./js/jquery.cookie.js"></script>
+	<link href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet" integrity="sha384-wvfXpqpZZVQGK6TAh5PVlGOfQNHSoD2xbE+QkPxCAFlNEevoEH3Sl0sibVcOQVnN" crossorigin="anonymous">
+	<style>
+		.error {
+			font-size: 10px;
+			color: red;
+			font-weight: bold;
+		}
+		input {
+			width: 240pt;
+		}
+		select {
+			width: 240pt;
+		}
+	</style>
 
-	<!-- クッキーの簡易扱いクラス -->
-	<script type="text/javascript" src="./js/bind_cookie.js"></script>
-	
-	<!-- 動作の定義 -->
-	<script src="./js/draw_chart.js"></script>
-	<script language="JavaScript">
-	<!--
+	<!-- 可能ならCDN、そうでなければコピーしてこのフォルダ配下だけ完結させること。 -->
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
+	<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+	<!-- // 共存テスト→OK！ -->
+
+	<script src="https://unpkg.com/vue/dist/vue.js"></script>
+	<script src="./lib/tiny-cookie/tiny-cookie.js"></script>
+	<script src="./js/vue_main.js"></script>
+	<script src="./js/ui_panel.js"></script>
+	<script>
 		$(document).ready(function(){
 			var panelbutton = bindExpandCollapsePanel( "id_ctrl_panel" )
-			drawEditSetting( "id_edit_setting" );
-			load6Cookie( "id_azure_domain", "id_device_key" );
-			bindUpdateButton( "id_update", "id_azure_domain", "id_device_key", "id_result" );
-			updateChart( 
-				"id_azure_domain", "id_device_key", "id_result", 
-				"./img/loading.gif"
-			).done(function(){
-			}).fail(function(){
-				panelbutton.click();
-			});
 		});
-	//-->
 	</script>
 </head>
-<body bgcolor="#ffffff">
+<body>
 	<div id="id_ctrl_panel">
-		<div id="id_edit_setting" style="width:520px;"></div>
-		<div id="id_update"></div>
-
-		<div style="display:none;">
-			<div id="id_azure_domain"></div>
-			<div id="id_device_key"></div>
+		<!-- ※以下のdiv配下のイベントはvue.jsに捉まれるので、jQueryから操作NG -->
+		<div id="app">
+			<div>
+				Azureドメイン：
+				<span class="error" v-if="!azure_domain_str">「http://～.azurewebsites.net」の形式で入力してください</span><br>
+				<input v-model="azure_domain_str">
+				<button v-on:click="add_azure" v-show="azure_domain_str">保存</button><br>
+			</div>
+			<br>
+			<div>
+				デバイスキー：（ハッシュ値＋表示名）
+				<span class="error" v-if="!device_key_str">デバイスキーを入力してください。</span>
+				<span class="error" v-if="!device_name_str">表示名を入力してください。</span>
+				<br>
+				<input v-model="device_key_str"><br>
+				<input v-model="device_name_str">
+				<button v-on:click="add_device" v-show="device_key_str && device_name_str">追加</button><br>
+			</div>
+			
+			<div style="display:none;"><!-- // debugger -->
+				<div id="id_azure_domain">{{ azure_domain_str }}</div>
+				<div id="id_device_key">{{ device_key_str }}</div>
+			</div>
 		</div>
 	</div>
+	<hr>
+	<!-- jQueryとの共存のために、↑↓別々のdivとして２つのvueインスタンスとして扱う。 -->
+	<div id="app_selector">
+		<select v-model="selected" v-on:change="update_inputer">
+			<option v-for="item in options" v-bind:value="item.value">
+				{{ item.text }}
+			</option>
+		</select>
+		<button v-on:click="update_chart">更新</button><br>
+		<!-- // debugger -->
+		<div style="display:none;"><!-- // debugger -->
+			対応するValue⇒ {{ selected }}
+		</div>
+	</div>
+	<div id="id_update"></div>
 	<hr style="width:520px;">
 	<div id="id_result" style="width:100%;">
-		<img id="id_loading" src="./img/loading.gif">
+		選択して「更新」を押してください。
 	</div>
 	<br>
 	<br>

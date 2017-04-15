@@ -142,11 +142,13 @@ var drawEditSetting = function( idEditSetting ){
         }
     });
     _loadSelecctOption("_id_device_drop");
+// alert( gCookieTargetSelectedValue.getValue() );
     updateText6Select();
 };
 
 var COOKIE_TARGET_LIST_VALUE = "DeviceKey20170403Value_Array";
 var COOKIE_TARGET_LIST_NAME = "DeviceKey20170403NAME_Array";
+var COOKIE_TARGET_SELECTED_VALUE = "DeviceKey20170403Value_Selected"
 var COUNT_OF_TARGET_LIST = 10;
 var gCookieTargetList = (function(){
     var list = [], n = COUNT_OF_TARGET_LIST;
@@ -158,8 +160,11 @@ var gCookieTargetList = (function(){
     }
     return list;
 }());
+var gCookieTargetSelectedValue = new CookieBind( COOKIE_TARGET_SELECTED_VALUE );
 var _saveSelectOption = function( idSelector ){
     var target = $("#" + idSelector + " option"), n=0; 
+
+    gCookieTargetSelectedValue.save( $("#" + idSelector + " option:selected").eq(0).val() ); 
     target.each(function(){
         var item = $(this);
         if( n < COUNT_OF_TARGET_LIST ){
@@ -180,6 +185,7 @@ var _loadSelecctOption = function( idSelector ){
             );
         }
     }
+    target.val( gCookieTargetSelectedValue.getValue() );
 };
 var _addUniquValue2Select = function( idSelect, keyStr, keyName ){
     var item = $("#"+idSelect + " option[value='" + keyStr + "']");
@@ -189,7 +195,7 @@ var _addUniquValue2Select = function( idSelect, keyStr, keyName ){
 };
 
 
-var updateChart = function( ID_AZURE, ID_DEVCICE, ID_RESULT, loadingImg ){
+var updateChart = function( ID_AZURE, ID_DEVCICE, ID_RESULT ){
     var dfd = $.Deferred(); // https://api.jquery.com/deferred.promise/
     var azure_domain, device_key;
 
@@ -198,11 +204,7 @@ var updateChart = function( ID_AZURE, ID_DEVCICE, ID_RESULT, loadingImg ){
 
     if((azure_domain.length != 0) && (device_key.length != 0)){
     	$("#"+ID_RESULT).empty();
-        if( loadingImg ){
-            $("#"+ID_RESULT).append("<img id=\"id_loading\" src=\"" + loadingImg + "\">");
-        }else{
-            $("#"+ID_RESULT).append("loading...");
-        }
+        $("#"+ID_RESULT).append("<i class=\"fa fa-spinner fa-spin\"></i>");
 
        _getChartDataOverAjax(
             azure_domain,
