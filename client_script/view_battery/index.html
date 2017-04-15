@@ -62,19 +62,20 @@
 	</div>
 	<hr>
 	<!-- jQueryとの共存のために、↑↓別々のdivとして２つのvueインスタンスとして扱う。 -->
-	<div id="app_selector">
-		<select v-model="selected" v-on:change="update_inputer">
-			<option v-for="item in options" v-bind:value="item.value">
-				{{ item.text }}
-			</option>
-		</select>
-		<button v-on:click="update_chart">更新</button><br>
-		<!-- // debugger -->
-		<div style="display:none;"><!-- // debugger -->
-			対応するValue⇒ {{ selected }}
+	<div>
+		<div id="app_selector">
+			<select v-model="selected" v-on:change="update_inputer">
+				<option v-for="item in options" v-bind:value="item.value">
+					{{ item.text }}
+				</option>
+			</select>
+			<button v-on:click="update_chart">更新</button><br>
+			<!-- // debugger -->
+			<div style="display:none;"><!-- // debugger -->
+				対応するValue⇒ {{ selected }}
+			</div>
 		</div>
 	</div>
-	<div id="id_update"></div>
 	<hr style="width:520px;">
 	<div id="id_result" style="width:100%;">
 		選択して「更新」を押してください。
