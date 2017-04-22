@@ -21,17 +21,34 @@
 	<!-- 可能ならCDN、そうでなければコピーしてこのフォルダ配下だけ完結させること。 -->
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.1.4/Chart.min.js"></script>
 	<script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
-	<!-- // 共存テスト→OK！ -->
-
-	<script src="https://unpkg.com/vue/dist/vue.js"></script>
-	<script src="./lib/tiny-cookie/tiny-cookie.js"></script>
-	<script src="./js/vue_main.js"></script>
-	<script src="./js/ui_panel.js"></script>
+	<script src="./brw_jq/ui_panel.js"></script>
+	<script src="./brw_jq/ui_chart.js"></script>
 	<script>
 		$(document).ready(function(){
 			var panelbutton = bindExpandCollapsePanel( "id_ctrl_panel" )
+			setTimeout( function(){
+				var azure_domain = $("#azure_domain");
+				var device_key = $("#id_device_key");
+				var azure_str, device_str;
+				var dfd;
+				if( (device_key.size() > 0) && (azure_domain.size() > 0) ){
+					azure_str = azure_domain.val();
+					device_str = device_key.val();
+					dfd = updateChart("#id_result", azure_str, device_str);
+					dfd.fail(function(){
+						panelbutton.click();
+					});
+				}else{
+					panelbutton.click();
+				}
+			}, 700 );
 		});
 	</script>
+	<!-- // 共存テスト→OK！ -->
+
+	<script src="https://unpkg.com/vue/dist/vue.js"></script>
+	<script src="./brw_lib/tiny-cookie/tiny-cookie.js"></script>
+	<script src="./src/vue_main.js"></script>
 </head>
 <body>
 	<div id="id_ctrl_panel">
@@ -39,8 +56,20 @@
 		<div id="app">
 			<div>
 				Azureドメイン：
+				<i v-if="azure_domain_str" class="fa fa-check" style="color:#4444ff"></i>
+				<!-- 
+				◆Font Awesome◆
+				楽して便利！Webアイコンフォント『Font Awesome』の使い方と活用 Tips
+				https://h2ham.net/font-awasome
+				https://web-bruno.com/font-awesome-icon-font/
+				→loadingのヤツ解説されてる。
+				
+				アイコンをWebフォントで表示！ Font Awesomeの使い方
+				→Ie7でも使えるらしい。
+				https://allabout.co.jp/gm/gc/402551/2/
+				 -->
 				<span class="error" v-if="!azure_domain_str">「http://～.azurewebsites.net」の形式で入力してください</span><br>
-				<input v-model="azure_domain_str">
+				<input v-model="azure_domain_str" id="azure_domain">
 				<button v-on:click="add_azure" v-show="azure_domain_str">保存</button><br>
 			</div>
 			<br>
@@ -49,7 +78,7 @@
 				<span class="error" v-if="!device_key_str">デバイスキーを入力してください。</span>
 				<span class="error" v-if="!device_name_str">表示名を入力してください。</span>
 				<br>
-				<input v-model="device_key_str"><br>
+				<input v-model="device_key_str" id="id_device_key"><br>
 				<input v-model="device_name_str">
 				<button v-on:click="add_device" v-show="device_key_str && device_name_str">追加</button><br>
 			</div>
@@ -62,7 +91,7 @@
 	</div>
 	<hr>
 	<!-- jQueryとの共存のために、↑↓別々のdivとして２つのvueインスタンスとして扱う。 -->
-	<div>
+	<div style="width:420px;">
 		<div id="app_selector">
 			<select v-model="selected" v-on:change="update_inputer">
 				<option v-for="item in options" v-bind:value="item.value">

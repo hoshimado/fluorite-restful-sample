@@ -1,8 +1,6 @@
 /*
     [ui_panel.js]
-
     encoding=UTF-8
-
 */
 
 
